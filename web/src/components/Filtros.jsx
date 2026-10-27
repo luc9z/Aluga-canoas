@@ -144,6 +144,29 @@ export default function Filtros({ filtros, opcoes, alterar, limpar, totalFavorit
         </div>
       </Grupo>
 
+      {opcoes?.mobilia && (
+        <Grupo titulo="Mobília">
+          <Marcadores
+            itens={opcoes.mobilia}
+            chave={(i) => i.id}
+            selecionados={lista(filtros.mobilia)}
+            alternar={alternarLista('mobilia')}
+          />
+        </Grupo>
+      )}
+
+      {opcoes?.conservacao && (
+        <Grupo titulo="Estado do imóvel">
+          <Marcadores
+            itens={opcoes.conservacao}
+            chave={(i) => i.id}
+            selecionados={lista(filtros.conservacao)}
+            alternar={alternarLista('conservacao')}
+          />
+          <p className="mt-1.5 text-xs text-tinta-suave">Mobília e estado só aparecem quando o anúncio informa.</p>
+        </Grupo>
+      )}
+
       <Grupo titulo="Bairro">
         {opcoes ? (
           <Marcadores
@@ -178,6 +201,7 @@ export default function Filtros({ filtros, opcoes, alterar, limpar, totalFavorit
         <Interruptor marcado={filtros.favoritos === '1'} alterar={(v) => alterar({ favoritos: v ? '1' : '' })}>
           Só favoritos ({totalFavoritos})
         </Interruptor>
+        <p className="mb-1 ml-6 text-xs text-tinta-suave">Os favoritos são compartilhados: todo mundo que abre o site vê os mesmos.</p>
         <Interruptor marcado={filtros.semRepetidos === '1'} alterar={(v) => alterar({ semRepetidos: v ? '1' : '' })}>
           Esconder o mesmo imóvel em outra imobiliária
         </Interruptor>

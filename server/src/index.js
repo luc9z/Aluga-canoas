@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import * as armazenamento from './armazenamento.js';
 import { buscar, opcoesDeFiltro } from './busca.js';
 import { coletaEmAndamento, coletarTudo } from './coletor.js';
+import * as favoritos from './favoritos.js';
 import { FONTES, FONTES_BLOQUEADAS } from './fontes/index.js';
 
 const PORTA = Number(process.env.PORT ?? 3001);
@@ -16,7 +17,33 @@ const NOMES = Object.fromEntries(FONTES.map((f) => [f.id, f.nome]));
 const app = express();
 
 app.get('/api/imoveis', (req, res) => {
-  res.json(buscar(armazenamento.obter().anuncios, req.query));
+  const { anuncios } = armazenamento.obter();
+  res.json(buscar(req.query.favoritos === '1' ? favoritos.anunciosFavoritos(anuncios) : anuncios, req.query));
+});
+
+// Favoritos compartilhados entre todos que acessam o site.
+app.get('/api/favoritos', (req, res) => {
+  res.json({ ids: favoritos.ids(), armazenamento: favoritos.ARMAZENAMENTO });
+});
+
+app.put('/api/favoritos/:id', async (req, res) => {
+  const anuncio = armazenamento.obter().anuncios.find((a) => a.id === req.params.id);
+  if (!anuncio) return res.status(404).json({ erro: 'Anúncio não encontrado' });
+  try {
+    await favoritos.adicionar(anuncio);
+    res.json({ ids: favoritos.ids() });
+  } catch (erro) {
+    res.status(erro.status ?? 500).json({ erro: erro.message });
+  }
+});
+
+app.delete('/api/favoritos/:id', async (req, res) => {
+  try {
+    await favoritos.remover(req.params.id);
+    res.json({ ids: favoritos.ids() });
+  } catch (erro) {
+    res.status(erro.status ?? 500).json({ erro: erro.message });
+  }
 });
 
 app.get('/api/imoveis/:id', (req, res) => {
@@ -54,9 +81,15 @@ if (existsSync(DIST)) {
 }
 
 await armazenamento.carregar();
+await favoritos.carregar();
 
 app.listen(PORTA, () => {
   console.log(`API em http://localhost:${PORTA}`);
+  console.log(
+    favoritos.ARMAZENAMENTO === 'upstash'
+      ? 'Favoritos no Upstash Redis'
+      : 'Favoritos em arquivo (no Render gratuito somem a cada reinício: configure UPSTASH_REDIS_REST_URL e UPSTASH_REDIS_REST_TOKEN)',
+  );
 });
 
 const { atualizadoEm } = armazenamento.obter();

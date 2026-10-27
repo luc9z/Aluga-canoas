@@ -14,3 +14,8 @@ services:
         value: "22"
       - key: COLETA_INTERVALO_HORAS
         value: "6"
+      # favoritos compartilhados (o disco do plano gratuito é apagado a cada reinício)
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

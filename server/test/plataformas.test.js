@@ -2,10 +2,11 @@
 // real dos sites (out/2026).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { lerCardsAgora, lerCardsOpen } from '../src/fontes/plataformas/html.js';
-import { extrairJsonLd, listingParaAnuncio } from '../src/fontes/plataformas/jsonld.js';
+import { lerCardsAgora, lerCardsKasa, lerCardsOpen, lerCardsPenteado } from '../src/fontes/plataformas/html.js';
+import { complementosAuxiliadora, extrairJsonLd, listingParaAnuncio } from '../src/fontes/plataformas/jsonld.js';
 import { sobressaiParaAnuncio } from '../src/fontes/plataformas/sobressai.js';
 import { extrairImoveisVistaDoHtml, vistaParaAnuncio } from '../src/fontes/plataformas/vista.js';
+import { montarAnuncio } from '../src/lib/normalizar.js';
 
 const fonte = { id: 'teste', nome: 'Teste' };
 
@@ -136,4 +137,99 @@ test('HTML Ágora: lê bairro, preço e características do card', () => {
   assert.equal(item.vagas, '1');
   assert.equal(item.suites, '0');
   assert.equal(item.foto, 'https://agora.imb.br/storage/imovel-galeria/1190/a.jpg');
+});
+
+test('JSON-LD Auxiliadora: complementa com condomínio, IPTU e mobília do payload', () => {
+  const lista = [{
+    codigo: '722136', suites: '0',
+    valores: { valor: 2500, valorCondominio: 567, valorIptu: 81 },
+    caracteristicaImovel: [{ nome: 'Ar-condicionado', slug: 'ar-condicionado' }, { nome: 'Semi-Mobiliado', slug: 'semi-mobiliado' }],
+    campanhas: [{ nome: 'Lançamento', slug: 'lancamento' }],
+  }];
+  const linha = `1e:["$","$L1f",null,{"initialData":${JSON.stringify(lista)}}]`;
+  const html = `<script>self.__next_f.push([1,${JSON.stringify(linha)}])</script>`;
+  const complemento = complementosAuxiliadora(html).get('722136');
+  assert.equal(complemento.condominio, 567);
+  const a = listingParaAnuncio(fonte, {
+    '@type': 'RealEstateListing', name: 'Apartamento - Centro - Canoas', identifier: '722136',
+    url: 'https://www.auxiliadorapredial.com.br/imovel/aluguel/722136',
+    offers: [{ price: 2500, itemOffered: { accommodationCategory: 'Apartamento' } }],
+  }, complemento);
+  assert.equal(a.total, 3148);
+  assert.equal(a.mobilia, 'semimobiliado');
+  assert.equal(a.conservacao, 'novo');
+});
+
+test('Vista API: usa os campos Mobiliado e AnoConstrucao (Prime Class)', () => {
+  const a = vistaParaAnuncio(
+    fonte,
+    { Codigo: '9345', Categoria: 'Apartamento', Mobiliado: 'Sim', SemiMobiliado: 'Nao', AnoConstrucao: '2010', DescricaoWeb: 'Amplo' },
+    'https://primeclassimobiliaria.com.br/imovel/apartamento/9345',
+  );
+  assert.equal(a.mobilia, 'mobiliado');
+  assert.equal(a.anoConstrucao, 2010);
+  assert.equal(a.conservacao, null);
+});
+
+test('HTML Penteado: lê o card e soma condomínio + IPTU', () => {
+  const html = `<div class="property-card">
+    <a href="detalhes-imovel-locacao.php?id_imovel=PE01546"><img class="property-card__image" src="https://cdn.vistahost.com.br/penteado/f.jpg"></a>
+    <div class="property-card__id"><span class="property-card__id-label">CÓD. PE01546</span></div>
+    <div class="property-card__body">
+      <div class="property-card__type-tag">Apartamento</div>
+      <h3 class="property-card__title"><a href="detalhes-imovel-locacao.php?id_imovel=PE01546">Mato Grande</a></h3>
+      <p class="property-card__location"><span>Canoas/RS</span></p>
+      <div class="property-card__features">
+        <div class="property-card__feature"><div><span class="property-card__feature-value">50</span><span class="property-card__feature-label">m²</span></div></div>
+        <div class="property-card__feature"><div><span class="property-card__feature-value">2</span><span class="property-card__feature-label">Dormitórios</span></div></div>
+        <div class="property-card__feature"><div><span class="property-card__feature-value">1</span><span class="property-card__feature-label">Vaga</span></div></div>
+      </div>
+      <div class="property-card__pricing">
+        <a href="#"><div class="property-card__price-main"><span class="property-card__price-type">Alugar</span><span class="property-card__price-value">R$ 950</span></div></a>
+        <div class="property-card__price-main"><span class="property-card__price-type">Condomínio + IPTU</span><span class="property-card__price-value">R$ 295</span></div>
+      </div>
+    </div>
+  </div>`;
+  const [item] = lerCardsPenteado(html, 'https://penteadoimoveis.com.br');
+  assert.equal(item.codigo, 'PE01546');
+  assert.equal(item.url, 'https://penteadoimoveis.com.br/detalhes-imovel-locacao.php?id_imovel=PE01546');
+  assert.equal(item.bairro, 'Mato Grande');
+  assert.equal(item.quartos, '2');
+  assert.equal(item.vagas, '1');
+  assert.equal(item.area, '50');
+  assert.equal(item.banheiros, null);
+  const a = montarAnuncio(fonte, item);
+  assert.equal(a.cidade, 'Canoas');
+  assert.equal(a.total, 1245);
+});
+
+test('HTML Kasa: lê o card e o tipo "Apartamento Semi mobiliado"', () => {
+  const html = `<div class="box_destaques">
+    <a href="detalhes_loc.php?imovel=1493&Google=CENTRO+Apartamento Semi mobiliado">
+      <img src="http://www.kasaimoveis.com.br/sim/aluguel/foto_001493_01.jpg" class="img_destaques" />
+      <div class="fluid tipo">Apartamento Semi mobiliado</div>
+      <div class="fluid finalidade">Cod 1493</div>
+    </a>
+    <div class="fluid area_descricao">
+      <section class="local_destaque"><span>CANOAS</span><p>CENTRO</p></section>
+      <section class="txt_destaque">Kasa Imóveis aluga: apartamento com 02 dormitórios...</p></section>
+      <section class="ficha_destaque">
+        <li><img src="imagens/icons/area.svg">80,00m²</li>
+        <li><img src="imagens/icons/dorm.svg">2 dorms</li>
+        <li><img src="imagens/icons/vaga.svg">1 vagas</li>
+      </section>
+      <section class="valor_destaque"><p>Aluguel</p><span>R$ 1.200,00</span></section>
+    </div>
+  </div>`;
+  const [item] = lerCardsKasa(html, 'https://www.kasaimoveis.com.br');
+  assert.equal(item.url, 'https://www.kasaimoveis.com.br/detalhes_loc.php?imovel=1493');
+  assert.equal(item.foto, 'https://www.kasaimoveis.com.br/sim/aluguel/foto_001493_01.jpg');
+  assert.equal(item.quartos, '2');
+  assert.equal(item.vagas, '1');
+  assert.equal(item.area, '80,00');
+  const a = montarAnuncio(fonte, item);
+  assert.equal(a.tipo, 'Apartamento');
+  assert.equal(a.bairro, 'Centro');
+  assert.equal(a.aluguel, 1200);
+  assert.equal(a.mobilia, 'semimobiliado');
 });

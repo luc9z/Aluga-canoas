@@ -49,7 +49,7 @@ export default function App() {
   const [fontes, setFontes] = useState(null);
   const [painelFontes, setPainelFontes] = useState(false);
   const [gavetaFiltros, setGavetaFiltros] = useState(false);
-  const { favoritos, alternar } = useFavoritos();
+  const { favoritos, alternar, erro: erroFavorito } = useFavoritos();
 
   const alterar = useCallback((mudancas) => {
     setFiltros((atual) => ({ ...atual, pagina: '', ...mudancas }));
@@ -59,12 +59,11 @@ export default function App() {
 
   const buscaTexto = useAtrasado(filtros.q ?? '', 300);
   const consulta = useMemo(() => {
-    const { favoritos: soFavoritos, q, ...resto } = filtros;
-    const params = { ...resto, q: buscaTexto };
-    // sem favoritos, "nenhum" garante lista vazia (ids vazio seria ignorado)
-    if (soFavoritos === '1') params.ids = [...favoritos].join(',') || 'nenhum';
+    const params = { ...filtros, q: buscaTexto };
     return Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v != null));
-  }, [filtros, buscaTexto, favoritos]);
+  }, [filtros, buscaTexto]);
+  // vendo só os favoritos, a lista muda quando alguém marca ou desmarca um
+  const chaveFavoritos = filtros.favoritos === '1' ? [...favoritos].sort().join(',') : '';
 
   useEffect(() => escreverUrl(filtros), [filtros]);
 
@@ -92,7 +91,7 @@ export default function App() {
     return () => {
       ativo = false;
     };
-  }, [consulta, versaoDados]);
+  }, [consulta, versaoDados, chaveFavoritos]);
 
   // Durante a coleta, acompanha o andamento e recarrega tudo ao terminar.
   const coletando = fontes?.coletando;
@@ -115,9 +114,10 @@ export default function App() {
     carregarFontes();
   };
 
-  const totalFiltros = ['precoMin', 'precoMax', 'quartos', 'vagas', 'areaMin', 'areaMax', 'bairro', 'imobiliaria', 'tipo', 'semRepetidos', 'comPreco', 'favoritos', 'q'].filter(
-    (k) => filtros[k],
-  ).length;
+  const totalFiltros = [
+    'precoMin', 'precoMax', 'quartos', 'vagas', 'areaMin', 'areaMax', 'bairro', 'imobiliaria', 'tipo',
+    'mobilia', 'conservacao', 'semRepetidos', 'comPreco', 'favoritos', 'q',
+  ].filter((k) => filtros[k]).length;
 
   const fontesComErro = fontes?.fontes.filter((f) => f.ok === false) ?? [];
   const totalImobiliarias = fontes?.fontes.length ?? 0;
@@ -213,8 +213,20 @@ export default function App() {
             </p>
           )}
 
+          {erroFavorito && (
+            <p role="alert" className="mb-5 rounded-md border border-erro/40 bg-erro/5 px-4 py-3 text-sm text-erro">
+              {erroFavorito}
+            </p>
+          )}
+
           {resultado && resultado.total === 0 && !carregando && (
-            <Vazio semDados={!fontes?.atualizadoEm} coletando={coletando} limpar={limpar} temFiltros={totalFiltros > 0} />
+            <Vazio
+              semDados={!fontes?.atualizadoEm}
+              coletando={coletando}
+              limpar={limpar}
+              temFiltros={totalFiltros > 0}
+              semFavoritos={filtros.favoritos === '1' && favoritos.size === 0}
+            />
           )}
 
           <ul className={`grid gap-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 ${carregando ? 'opacity-60' : ''}`} aria-busy={carregando}>
@@ -244,7 +256,7 @@ export default function App() {
   );
 }
 
-function Vazio({ semDados, coletando, limpar, temFiltros }) {
+function Vazio({ semDados, coletando, limpar, temFiltros, semFavoritos }) {
   if (semDados) {
     return (
       <div className="rounded-lg border border-dashed border-linha bg-white px-6 py-12 text-center">
@@ -257,7 +269,10 @@ function Vazio({ semDados, coletando, limpar, temFiltros }) {
   }
   return (
     <div className="rounded-lg border border-dashed border-linha bg-white px-6 py-12 text-center">
-      <p className="text-lg font-semibold">Nenhum apartamento com esses filtros.</p>
+      <p className="text-lg font-semibold">{semFavoritos ? 'Nenhum favorito ainda.' : 'Nenhum apartamento com esses filtros.'}</p>
+      {semFavoritos && (
+        <p className="mt-1 text-tinta-suave">Toque no coração de um anúncio para salvar. Todo mundo que abre o site vê os favoritos.</p>
+      )}
       {temFiltros && (
         <button type="button" onClick={limpar} className="mt-3 font-semibold underline underline-offset-4">
           Limpar filtros

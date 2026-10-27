@@ -2,7 +2,15 @@
 // imóveis com os mesmos nomes de campo (Codigo, ValorLocacao, Categoria...),
 // seja por uma API JSON (Prime Class) ou embutidos no HTML (Gallina, Lottici).
 import { buscarJson, buscarTexto, esperar } from '../../lib/http.js';
+import { fimDoJson, payloadNext } from '../../lib/next.js';
 import { montarAnuncio, slug } from '../../lib/normalizar.js';
+
+// Campos "Sim"/"Nao" que só a API Vista devolve (os sites em Next.js não trazem).
+function mobiliaVista(imovel) {
+  if (imovel.Mobiliado === 'Sim') return 'mobiliado';
+  if (imovel.SemiMobiliado === 'Sim') return 'semimobiliado';
+  return null;
+}
 
 export function vistaParaAnuncio(fonte, imovel, url) {
   const endereco = [imovel.TipoEndereco, imovel.Endereco].filter(Boolean).join(' ');
@@ -26,6 +34,8 @@ export function vistaParaAnuncio(fonte, imovel, url) {
     descricao: imovel.DescricaoWebResumo || imovel.DescricaoWeb,
     latitude: imovel.Latitude,
     longitude: imovel.Longitude,
+    mobilia: mobiliaVista(imovel),
+    anoConstrucao: imovel.AnoConstrucao,
   });
 }
 
@@ -50,6 +60,7 @@ export function fonteVistaApi({ id, nome, site, cidade = 'Canoas' }) {
               'Codigo', 'ValorLocacao', 'Categoria', 'Cidade', 'Bairro', 'Status', 'Dormitorios',
               'Vagas', 'Suites', 'TotalBanheiros', 'AreaPrivativa', 'AreaTotal', 'FotoDestaque',
               'TituloSite', 'TipoEndereco', 'Endereco', 'ValorCondominio', 'ValorIptu',
+              'DescricaoWeb', 'Mobiliado', 'SemiMobiliado', 'AnoConstrucao',
             ],
             filter: {
               ExibirNoSite: ['Sim'],
@@ -83,19 +94,11 @@ export function fonteVistaApi({ id, nome, site, cidade = 'Canoas' }) {
  * (self.__next_f.push) das páginas de busca.
  */
 export function extrairImoveisVistaDoHtml(html) {
-  let payload = '';
-  const regex = /self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g;
-  for (const m of html.matchAll(regex)) {
-    try {
-      payload += JSON.parse(`"${m[1]}"`);
-    } catch {
-      // trecho malformado: ignora
-    }
-  }
+  const payload = payloadNext(html);
   const imoveis = [];
   let inicio = 0;
   while ((inicio = payload.indexOf('{"Codigo":', inicio)) >= 0) {
-    const fim = fimDoObjeto(payload, inicio);
+    const fim = fimDoJson(payload, inicio);
     if (fim < 0) break;
     try {
       imoveis.push(JSON.parse(payload.slice(inicio, fim + 1)));
@@ -105,21 +108,6 @@ export function extrairImoveisVistaDoHtml(html) {
     inicio = fim + 1;
   }
   return imoveis;
-}
-
-function fimDoObjeto(texto, inicio) {
-  let profundidade = 0;
-  let emString = false;
-  for (let i = inicio; i < texto.length; i++) {
-    const c = texto[i];
-    if (emString) {
-      if (c === '\\') i++;
-      else if (c === '"') emString = false;
-    } else if (c === '"') emString = true;
-    else if (c === '{') profundidade++;
-    else if (c === '}' && --profundidade === 0) return i;
-  }
-  return -1;
 }
 
 /**

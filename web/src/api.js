@@ -9,4 +9,7 @@ export const api = {
   filtros: () => pedir('/filtros'),
   fontes: () => pedir('/fontes'),
   coletar: () => pedir('/coletar', { method: 'POST' }),
+  favoritos: () => pedir('/favoritos'),
+  favoritar: (id) => pedir(`/favoritos/${encodeURIComponent(id)}`, { method: 'PUT' }),
+  desfavoritar: (id) => pedir(`/favoritos/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 };

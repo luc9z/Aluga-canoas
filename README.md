@@ -1,6 +1,6 @@
 # Aluga Canoas: agregador de apartamentos para alugar
 
-Busca os apartamentos para alugar em **Canoas/RS** direto nos sites das imobiliárias e mostra tudo numa tela só, com filtros por preço, quartos, vagas, área, bairro, tipo e imobiliária.
+Busca os apartamentos para alugar em **Canoas/RS** direto nos sites das imobiliárias e mostra tudo numa tela só, com filtros por preço, quartos, vagas, área, mobília, estado do imóvel (novo ou reformado), bairro, tipo e imobiliária.
 
 Cada anúncio leva para a página original da imobiliária, onde se faz o contato.
 
@@ -8,7 +8,7 @@ Cada anúncio leva para a página original da imobiliária, onde se faz o contat
 
 | Imobiliária | Site | Como os dados são lidos |
 |---|---|---|
-| Auxiliadora Predial | auxiliadorapredial.com.br | Dados estruturados schema.org (JSON-LD) |
+| Auxiliadora Predial | auxiliadorapredial.com.br | Dados estruturados schema.org (JSON-LD) + lista da busca embutida na página (condomínio, IPTU, características) |
 | Imobiliária Gestão | imobiliariagestao.com.br | API GraphQL do site (plataforma Sobressai) |
 | Moresco Imóveis | morescoimoveis.com.br | API GraphQL do site (plataforma Sobressai) |
 | Gallina Imóveis | gallinaimoveis.com.br | Dados do CRM Vista embutidos na página |
@@ -16,10 +16,12 @@ Cada anúncio leva para a página original da imobiliária, onde se faz o contat
 | Prime Class Imobiliária | primeclassimobiliaria.com.br | API do CRM Vista usada pelo site |
 | OPEN Imobiliária | openimobiliaria.com.br | Leitura dos cards HTML |
 | Ágora Cia Imobiliária | agora.imb.br | Leitura dos cards HTML |
+| Penteado Imóveis | penteadoimoveis.com.br | Leitura dos cards HTML |
+| Kasa Imóveis | kasaimoveis.com.br | Leitura dos cards HTML |
 
-Na primeira coleta (out/2026) foram **724 apartamentos** em cerca de 50 segundos.
+Na coleta de 27/out/2026 foram **837 apartamentos** em cerca de 25 segundos.
 
-Algumas imobiliárias de Canoas **bloqueiam leitura automática** (Vila Rica, Brandalise, Aurora e Crédito Real). Elas aparecem na tela "Imobiliárias pesquisadas", com link para consultar direto no site. O sistema não tenta burlar esses bloqueios.
+Algumas imobiliárias de Canoas **bloqueiam leitura automática** (Vila Rica, Brandalise, Aurora, Crédito Real e Benin). Elas aparecem na tela "Imobiliárias pesquisadas", com link para consultar direto no site. O sistema não tenta burlar esses bloqueios.
 
 ## Como rodar
 
@@ -52,21 +54,32 @@ O arquivo `render.yaml` já descreve o serviço. No [Render](https://render.com)
 
 No plano gratuito o servidor dorme depois de 15 minutos sem acesso e o disco não é permanente: ao acordar ele refaz a coleta (cerca de 1 minuto, a tela mostra "Buscando anúncios…").
 
+Por isso os **favoritos** precisam de um banco fora do Render, senão somem a cada reinício. O [Upstash](https://upstash.com) tem Redis gratuito:
+
+1. Crie a conta e um banco Redis (região mais próxima do servidor do Render, ex.: `us-east-1`).
+2. Na página do banco, em **REST API**, copie `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`.
+3. No Render, cole os dois valores nas variáveis de ambiente do serviço (o Blueprint já pede por eles).
+
+O log do servidor diz onde os favoritos estão sendo guardados ("Favoritos no Upstash Redis" ou "Favoritos em arquivo").
+
 ### Configuração (variáveis de ambiente)
 
 | Variável | Padrão | Para que serve |
 |---|---|---|
 | `PORT` | `3001` | Porta da API |
 | `COLETA_INTERVALO_HORAS` | `6` | Intervalo da coleta automática (`0` desliga) |
-| `PASTA_DADOS` | `server/data` | Onde fica o `imoveis.json` com os anúncios |
+| `PASTA_DADOS` | `server/data` | Onde ficam o `imoveis.json` com os anúncios e o `favoritos.json` (sem Upstash) |
+| `UPSTASH_REDIS_REST_URL` | — | Endereço REST do Redis do Upstash, para os favoritos |
+| `UPSTASH_REDIS_REST_TOKEN` | — | Token do Redis do Upstash |
 
 ## Recursos da interface
 
 - Filtros por aluguel (mínimo/máximo e atalhos "até R$ 2.000"), quartos, vagas, área, bairro, tipo (apartamento, kitnet, cobertura, loft…) e imobiliária
+- **Mobília** (mobiliado, semimobiliado) e **estado do imóvel** (novo/1ª locação, reformado). Vêm do campo da imobiliária quando o site tem um (Prime Class, Auxiliadora) ou das palavras do anúncio ("semimobiliado", "primeira locação", "todo reformado"…). Prédio com ano de construção dos últimos 5 anos conta como novo. Anúncio que não fala disso não entra nesses filtros
 - Busca por texto (rua, condomínio, "mobiliado", "piscina"…), sem diferença de acentos
 - Ordenação por menor aluguel, menor custo total (aluguel + condomínio + IPTU, quando a imobiliária informa), menor preço por m², maior área e mais recentes
-- **Favoritos** salvos no navegador
-- Selo **Novo** nos anúncios que apareceram nas últimas 48 horas
+- **Favoritos compartilhados**: o coração salva no servidor, e todo mundo que abre o site vê e altera a mesma lista (a tela relê a cada 30 segundos). Um favorito que sai do site da imobiliária continua na lista como "Não está mais anunciado"
+- Selo **Anúncio novo** nos anúncios que apareceram nas últimas 48 horas
 - **Repetidos**: o mesmo apartamento anunciado por duas imobiliárias (mesmo bairro, quartos, área e aluguel) mostra "Também anunciado por…", e há um filtro para esconder as cópias
 - Os filtros ficam na URL: dá para salvar a busca nos favoritos do navegador ou compartilhar
 - Funciona no celular (os filtros abrem numa gaveta lateral)
@@ -79,16 +92,18 @@ server/src/
 ├── coletor.js            roda todas as fontes em paralelo, junta e salva
 ├── busca.js              filtros, ordenação e paginação
 ├── armazenamento.js      leitura e gravação de data/imoveis.json
+├── favoritos.js          favoritos compartilhados (Upstash Redis ou data/favoritos.json)
 ├── lib/
 │   ├── http.js           requisições com timeout, novas tentativas e pausa entre páginas
-│   └── normalizar.js     formato único: preço, tipo, bairro ("Mal. Rondon" → "Marechal Rondon")…
+│   ├── next.js           leitura dos dados que sites Next.js embutem no HTML
+│   └── normalizar.js     formato único: preço, tipo, bairro ("Mal. Rondon" → "Marechal Rondon"), mobília, novo/reformado…
 └── fontes/
     ├── index.js          cadastro das imobiliárias
     └── plataformas/      um leitor por plataforma de site
-        ├── jsonld.js     schema.org RealEstateListing
+        ├── jsonld.js     schema.org RealEstateListing (+ complemento da Auxiliadora)
         ├── sobressai.js  API GraphQL da Sobressai
         ├── vista.js      CRM Vista (API ou dados embutidos na página)
-        └── html.js       leitura de cards HTML (OPEN, Ágora)
+        └── html.js       leitura de cards HTML (OPEN, Ágora, Penteado, Kasa)
 web/src/                  interface React + Tailwind
 ```
 

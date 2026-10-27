@@ -4,9 +4,9 @@ import { buscar, filtrar, opcoesDeFiltro } from '../src/busca.js';
 import { marcarRepetidos } from '../src/coletor.js';
 
 const anuncios = [
-  { id: 'a:1', imobiliaria: 'a', imobiliariaNome: 'A', titulo: 'Apto mobiliado', tipo: 'Apartamento', bairro: 'Centro', aluguel: 1500, quartos: 1, vagas: 1, area: 40, foto: 'f' },
-  { id: 'a:2', imobiliaria: 'a', imobiliariaNome: 'A', titulo: 'Cobertura', tipo: 'Cobertura', bairro: 'Igara', aluguel: 4000, quartos: 3, vagas: 2, area: 150 },
-  { id: 'b:1', imobiliaria: 'b', imobiliariaNome: 'B', titulo: 'Apartamento 2 dormitórios', tipo: 'Apartamento', bairro: 'Centro', aluguel: 2200, quartos: 2, vagas: 0, area: 60 },
+  { id: 'a:1', imobiliaria: 'a', imobiliariaNome: 'A', titulo: 'Apto mobiliado', tipo: 'Apartamento', bairro: 'Centro', aluguel: 1500, quartos: 1, vagas: 1, area: 40, foto: 'f', mobilia: 'mobiliado', conservacao: 'reformado' },
+  { id: 'a:2', imobiliaria: 'a', imobiliariaNome: 'A', titulo: 'Cobertura', tipo: 'Cobertura', bairro: 'Igara', aluguel: 4000, quartos: 3, vagas: 2, area: 150, mobilia: 'semimobiliado', conservacao: 'novo' },
+  { id: 'b:1', imobiliaria: 'b', imobiliariaNome: 'B', titulo: 'Apartamento 2 dormitórios', tipo: 'Apartamento', bairro: 'Centro', aluguel: 2200, quartos: 2, vagas: 0, area: 60, mobilia: 'sem' },
   { id: 'b:2', imobiliaria: 'b', imobiliariaNome: 'B', titulo: 'Sob consulta', tipo: 'Apartamento', bairro: 'São José', aluguel: null, quartos: 2, area: 55 },
 ];
 
@@ -19,6 +19,15 @@ test('filtra por preço, quartos, bairro e imobiliária', () => {
   assert.deepEqual(ids(filtrar(anuncios, { imobiliaria: 'b', comPreco: '1' })), ['b:1']);
   assert.deepEqual(ids(filtrar(anuncios, { vagas: '1', areaMin: '50' })), ['a:2']);
   assert.deepEqual(ids(filtrar(anuncios, { tipo: 'Cobertura' })), ['a:2']);
+});
+
+test('filtra por mobília e estado do imóvel', () => {
+  assert.deepEqual(ids(filtrar(anuncios, { mobilia: 'mobiliado' })), ['a:1']);
+  assert.deepEqual(ids(filtrar(anuncios, { mobilia: 'mobiliado,semimobiliado' })), ['a:1', 'a:2']);
+  assert.deepEqual(ids(filtrar(anuncios, { conservacao: 'novo,reformado', mobilia: 'semimobiliado' })), ['a:2']);
+  const opcoes = opcoesDeFiltro(anuncios, {});
+  assert.deepEqual(opcoes.mobilia.map((o) => [o.id, o.total]), [['mobiliado', 1], ['semimobiliado', 1]]);
+  assert.deepEqual(opcoes.conservacao.map((o) => [o.id, o.total]), [['novo', 1], ['reformado', 1]]);
 });
 
 test('busca por texto ignora acentos e maiúsculas', () => {

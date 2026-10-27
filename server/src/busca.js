@@ -40,6 +40,8 @@ export function filtrar(anuncios, query) {
   const imobiliarias = new Set(lista(query.imobiliaria));
   const somenteIds = query.ids !== undefined ? new Set(lista(query.ids)) : null;
   const tipos = new Set(lista(query.tipo));
+  const mobilias = new Set(lista(query.mobilia));
+  const conservacoes = new Set(lista(query.conservacao));
   const precoMin = numero(query.precoMin);
   const precoMax = numero(query.precoMax);
   const quartos = numero(query.quartos);
@@ -58,6 +60,8 @@ export function filtrar(anuncios, query) {
     if (bairros.size && !bairros.has(a.bairro)) return false;
     if (imobiliarias.size && !imobiliarias.has(a.imobiliaria)) return false;
     if (tipos.size && !tipos.has(a.tipo)) return false;
+    if (mobilias.size && !mobilias.has(a.mobilia)) return false;
+    if (conservacoes.size && !conservacoes.has(a.conservacao)) return false;
     if (comPreco && !a.aluguel) return false;
     if (comFoto && !a.foto) return false;
     // quem não informa o valor (ex.: aluguel "sob consulta") sai quando há filtro nele
@@ -103,11 +107,24 @@ const contar = (itens, chave) => {
   return contagem;
 };
 
+const MOBILIAS = [
+  ['mobiliado', 'Mobiliado'],
+  ['semimobiliado', 'Semimobiliado'],
+];
+const CONSERVACOES = [
+  ['novo', 'Novo / 1ª locação'],
+  ['reformado', 'Reformado'],
+];
+
 /** Opções disponíveis para montar os filtros da tela. */
 export function opcoesDeFiltro(anuncios, nomesImobiliarias) {
   const precos = anuncios.map((a) => a.aluguel).filter(Boolean);
   const porImobiliaria = contar(anuncios, 'imobiliaria');
+  const porMobilia = contar(anuncios, 'mobilia');
+  const porConservacao = contar(anuncios, 'conservacao');
   return {
+    mobilia: MOBILIAS.map(([id, nome]) => ({ id, nome, total: porMobilia.get(id) ?? 0 })),
+    conservacao: CONSERVACOES.map(([id, nome]) => ({ id, nome, total: porConservacao.get(id) ?? 0 })),
     bairros: [...contar(anuncios, 'bairro')]
       .map(([nome, total]) => ({ nome, total }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),

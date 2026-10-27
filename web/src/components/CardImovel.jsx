@@ -18,6 +18,27 @@ function Caracteristicas({ anuncio }) {
   );
 }
 
+// Mobília e estado, quando o anúncio informa.
+function Selos({ anuncio }) {
+  const selos = [
+    anuncio.mobilia === 'mobiliado' && 'Mobiliado',
+    anuncio.mobilia === 'semimobiliado' && 'Semimobiliado',
+    anuncio.conservacao === 'novo' && !anuncio.anoConstrucao && 'Novo / 1ª locação',
+    anuncio.conservacao === 'reformado' && 'Reformado',
+    anuncio.anoConstrucao && `Construído em ${anuncio.anoConstrucao}`,
+  ].filter(Boolean);
+  if (!selos.length) return null;
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {selos.map((selo) => (
+        <li key={selo} className="rounded border border-linha bg-fundo px-2 py-0.5 text-xs font-semibold">
+          {selo}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default function CardImovel({ anuncio, favorito, alternarFavorito, primeiraColetaEm }) {
   const [semFoto, setSemFoto] = useState(!anuncio.foto);
   const extras = anuncio.total && anuncio.total > anuncio.aluguel ? anuncio.total - anuncio.aluguel : 0;
@@ -34,17 +55,24 @@ export default function CardImovel({ anuncio, favorito, alternarFavorito, primei
             loading="lazy"
             referrerPolicy="no-referrer"
             onError={() => setSemFoto(true)}
-            className="h-full w-full object-cover"
+            className={`h-full w-full object-cover ${anuncio.indisponivel ? 'grayscale' : ''}`}
           />
         )}
-        {ehNovo(anuncio, primeiraColetaEm) && (
-          <span className="absolute left-3 top-3 rounded bg-white px-2 py-0.5 text-xs font-semibold text-ok shadow-sm">Novo</span>
+        {anuncio.indisponivel ? (
+          <span className="absolute left-3 top-3 rounded bg-white px-2 py-0.5 text-xs font-semibold text-erro shadow-sm">
+            Não está mais anunciado
+          </span>
+        ) : (
+          ehNovo(anuncio, primeiraColetaEm) && (
+            <span className="absolute left-3 top-3 rounded bg-white px-2 py-0.5 text-xs font-semibold text-ok shadow-sm">Anúncio novo</span>
+          )
         )}
         <button
           type="button"
           onClick={() => alternarFavorito(anuncio.id)}
           aria-pressed={favorito}
-          aria-label={favorito ? 'Tirar dos favoritos' : 'Salvar nos favoritos'}
+          aria-label={favorito ? 'Tirar dos favoritos de todos' : 'Salvar nos favoritos (todos veem)'}
+          title={favorito ? 'Tirar dos favoritos de todos' : 'Salvar nos favoritos (todos veem)'}
           className="absolute right-2 top-2 z-10 rounded-full bg-white/90 p-2 text-tinta shadow-sm hover:bg-white"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
@@ -92,6 +120,7 @@ export default function CardImovel({ anuncio, favorito, alternarFavorito, primei
             .join(', ')}
         </p>
         <Caracteristicas anuncio={anuncio} />
+        <Selos anuncio={anuncio} />
 
         <footer className="mt-auto flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-linha pt-3 text-sm">
           <span>

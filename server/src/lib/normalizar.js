@@ -105,6 +105,52 @@ export function normalizarCidade(cidade) {
   return limpo ? capitalizar(limpo) : null;
 }
 
+// Mobília e estado do imóvel: quando a imobiliária não tem um campo próprio,
+// valem as palavras do tipo, título, descrição e características do anúncio.
+const SEMIMOBILIADO = /semi[\s-]?mobiliad|parcialmente mobiliad/;
+const SEM_MOBILIA = /\b(nao|sem)\s+(e\s+|esta\s+|sera\s+)?mobiliad|desmobiliad|\bsem (mobilia|moveis)\b/;
+// "cozinha mobiliada", "armários mobiliados": só parte dos móveis
+const MOBILIA_PARCIAL = /\b(cozinha|dormitorios?|quartos?|banheiros?|armarios?)\s+(planejad[oa]s?\s+e\s+)?mobiliad[oa]s?\b/g;
+const MOBILIADO = /\bmobiliad[oa]s?\b|\bcom (toda a )?mobilia\b/;
+
+/** 'mobiliado' | 'semimobiliado' | 'sem' | null (o anúncio não diz) */
+export function detectarMobilia(texto) {
+  const t = semAcentos(texto).toLowerCase();
+  if (SEMIMOBILIADO.test(t)) return 'semimobiliado';
+  if (SEM_MOBILIA.test(t)) return 'sem';
+  const semParciais = t.replace(MOBILIA_PARCIAL, ' ');
+  if (MOBILIADO.test(semParciais)) return 'mobiliado';
+  return semParciais !== t ? 'semimobiliado' : null;
+}
+
+const NOVO = new RegExp(
+  [
+    '\\b(primeira|1a|1ª|1º|1°|1o) locacao',
+    '\\bnunca (foi )?(habitad|morad|ocupad|usad)',
+    '\\brecem[\\s-]?(construid|entregue|inaugurad|lancad)',
+    '\\blancamento\\b',
+    '\\b(imovel|apartamento|apto|predio|edificio|condominio|empreendimento|loft|studio|cobertura) (totalmente |todo |bem |super )?nov[oa]\\b',
+    '\\bnov[oa] (imovel|apartamento|apto|predio|edificio|empreendimento)\\b',
+  ].join('|'),
+);
+const REFORMADO = /\breformad[oa]s?\b|\breforma (completa|total|geral|recente|nova)\b/;
+// prédios com até esta idade contam como novos
+const IDADE_NOVO = 5;
+
+/** 'novo' (prédio novo, 1ª locação, lançamento) | 'reformado' | null (o anúncio não diz) */
+export function detectarConservacao(texto, anoConstrucao = null) {
+  if (anoConstrucao && anoConstrucao >= new Date().getFullYear() - IDADE_NOVO) return 'novo';
+  const t = semAcentos(texto).toLowerCase();
+  if (NOVO.test(t)) return 'novo';
+  if (REFORMADO.test(t)) return 'reformado';
+  return null;
+}
+
+function paraAno(valor) {
+  const ano = paraInteiro(valor);
+  return ano && ano >= 1900 && ano <= new Date().getFullYear() + 5 ? ano : null;
+}
+
 /**
  * Monta o anúncio no formato padrão. Campos ausentes viram null.
  * Retorna null se não for apartamento ou não tiver URL/código.
@@ -115,6 +161,9 @@ export function montarAnuncio(fonte, dados) {
   const aluguel = paraNumero(dados.aluguel);
   const condominio = paraNumero(dados.condominio);
   const iptu = paraNumero(dados.iptu);
+  const anoConstrucao = paraAno(dados.anoConstrucao);
+  // a descrição inteira, antes de ser cortada para guardar
+  const texto = [dados.tipo, dados.titulo, dados.descricao, ...[dados.caracteristicas ?? []].flat()].filter(Boolean).join(' ');
   return {
     id: `${fonte.id}:${dados.codigo}`,
     imobiliaria: fonte.id,
@@ -139,6 +188,9 @@ export function montarAnuncio(fonte, dados) {
     descricao: limparTexto(dados.descricao)?.slice(0, 600) ?? null,
     latitude: paraCoordenada(dados.latitude),
     longitude: paraCoordenada(dados.longitude),
+    mobilia: dados.mobilia ?? detectarMobilia(texto),
+    conservacao: dados.conservacao ?? detectarConservacao(texto, anoConstrucao),
+    anoConstrucao,
   };
 }
 
