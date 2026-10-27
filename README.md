@@ -26,7 +26,6 @@ Algumas imobiliárias de Canoas **bloqueiam leitura automática** (Vila Rica, Br
 Requisitos: **Node.js 18.18 ou mais novo**.
 
 ```bash
-cd imoveis-agregador
 npm install
 npm run dev
 ```
@@ -46,6 +45,12 @@ npm run coletar
 npm run build   # compila a interface em web/dist
 npm start       # API + interface em http://localhost:3001
 ```
+
+### Hospedar no Render
+
+O arquivo `render.yaml` já descreve o serviço. No [Render](https://render.com): **New > Blueprint**, escolha este repositório e confirme. O endereço fica em `https://aluga-canoas.onrender.com` (ou parecido).
+
+No plano gratuito o servidor dorme depois de 15 minutos sem acesso e o disco não é permanente: ao acordar ele refaz a coleta (cerca de 1 minuto, a tela mostra "Buscando anúncios…").
 
 ### Configuração (variáveis de ambiente)
 

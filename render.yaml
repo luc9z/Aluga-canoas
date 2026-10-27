@@ -1,0 +1,16 @@
+# Deploy no Render.
+# No painel do Render: New > Blueprint > escolher este repositório.
+services:
+  - type: web
+    name: aluga-canoas
+    runtime: node
+    plan: free
+    region: virginia
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/fontes
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: COLETA_INTERVALO_HORAS
+        value: "6"
