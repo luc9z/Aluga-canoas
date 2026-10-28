@@ -20,6 +20,10 @@ function dentro(valor, min, max) {
 
 const normalizarBusca = (texto) => semAcentos(texto).toLowerCase();
 
+// "bom preço": aluguel pelo menos 15% abaixo da mediana do bairro para o
+// mesmo número de quartos (veja marcarBomPreco em coletor.js)
+export const BOM_PRECO = 0.15;
+
 const ORDENACOES = {
   preco_asc: (a, b) => (a.aluguel ?? Infinity) - (b.aluguel ?? Infinity),
   preco_desc: (a, b) => (b.aluguel ?? -1) - (a.aluguel ?? -1),
@@ -52,6 +56,7 @@ export function filtrar(anuncios, query) {
   const comPreco = query.comPreco === '1' || query.comPreco === 'true';
   const comFoto = query.comFoto === '1' || query.comFoto === 'true';
   const semRepetidos = query.semRepetidos === '1' || query.semRepetidos === 'true';
+  const bomPreco = query.bomPreco === '1' || query.bomPreco === 'true';
 
   const vistosRepetidos = new Set();
 
@@ -64,6 +69,7 @@ export function filtrar(anuncios, query) {
     if (conservacoes.size && !conservacoes.has(a.conservacao)) return false;
     if (comPreco && !a.aluguel) return false;
     if (comFoto && !a.foto) return false;
+    if (bomPreco && !(a.abaixoDaMedia >= BOM_PRECO)) return false;
     // quem não informa o valor (ex.: aluguel "sob consulta") sai quando há filtro nele
     if (!dentro(a.aluguel, precoMin, precoMax)) return false;
     if (!dentro(a.quartos, quartos, null)) return false;
@@ -83,9 +89,13 @@ export function filtrar(anuncios, query) {
   });
 }
 
-export function buscar(anuncios, query) {
+/** @param pontosEmAlta Map id → pontuação, usado pela ordem "em_alta" */
+export function buscar(anuncios, query, { pontosEmAlta } = {}) {
   const filtrados = filtrar(anuncios, query);
-  const ordenar = ORDENACOES[query.ordem] ?? ORDENACOES.preco_asc;
+  const ordenar =
+    query.ordem === 'em_alta' && pontosEmAlta
+      ? (a, b) => (pontosEmAlta.get(b.id) ?? 0) - (pontosEmAlta.get(a.id) ?? 0) || ORDENACOES.preco_asc(a, b)
+      : ORDENACOES[query.ordem] ?? ORDENACOES.preco_asc;
   filtrados.sort(ordenar);
   const porPagina = Math.min(Math.max(numero(query.porPagina) ?? 24, 1), 100);
   const pagina = Math.max(numero(query.pagina) ?? 1, 1);

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from './api.js';
+import Assistente from './components/Assistente.jsx';
 import CardImovel from './components/CardImovel.jsx';
+import DetalheImovel from './components/DetalheImovel.jsx';
+import EmAlta from './components/EmAlta.jsx';
 import Filtros from './components/Filtros.jsx';
 import PainelFontes from './components/PainelFontes.jsx';
 import Placa from './components/Placa.jsx';
@@ -9,6 +12,7 @@ import { useFavoritos } from './useFavoritos.js';
 
 const ORDENS = [
   ['preco_asc', 'Menor aluguel'],
+  ['em_alta', 'Em alta'],
   ['total_asc', 'Menor custo total'],
   ['preco_m2_asc', 'Menor preço por m²'],
   ['area_desc', 'Maior área'],
@@ -16,13 +20,15 @@ const ORDENS = [
   ['preco_desc', 'Maior aluguel'],
 ];
 
-// Os filtros ficam na URL, então dá para salvar ou compartilhar uma busca.
+// Os filtros e o anúncio aberto ficam na URL, então dá para salvar ou
+// compartilhar uma busca ou um apartamento.
 function lerUrl() {
-  return Object.fromEntries(new URLSearchParams(window.location.search));
+  const { anuncio, ...filtros } = Object.fromEntries(new URLSearchParams(window.location.search));
+  return { filtros, anuncio };
 }
 
-function escreverUrl(filtros) {
-  const params = new URLSearchParams(Object.entries(filtros).filter(([, v]) => v !== '' && v != null));
+function escreverUrl(filtros, anuncio) {
+  const params = new URLSearchParams(Object.entries({ ...filtros, anuncio }).filter(([, v]) => v !== '' && v != null));
   const texto = params.toString();
   try {
     window.history.replaceState(null, '', texto ? `?${texto}` : window.location.pathname);
@@ -40,8 +46,13 @@ function useAtrasado(valor, ms) {
   return atrasado;
 }
 
+// anúncios já abertos nesta aba: cada um conta uma visita só
+const CHAVE_VISTOS = 'aluga-canoas:vistos';
+
 export default function App() {
-  const [filtros, setFiltros] = useState(lerUrl);
+  const [filtros, setFiltros] = useState(() => lerUrl().filtros);
+  const [aberto, setAberto] = useState(null);
+  const [quentes, setQuentes] = useState([]);
   const [opcoes, setOpcoes] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [carregando, setCarregando] = useState(true);
@@ -65,7 +76,26 @@ export default function App() {
   // vendo só os favoritos, a lista muda quando alguém marca ou desmarca um
   const chaveFavoritos = filtros.favoritos === '1' ? [...favoritos].sort().join(',') : '';
 
-  useEffect(() => escreverUrl(filtros), [filtros]);
+  useEffect(() => escreverUrl(filtros, aberto?.id), [filtros, aberto]);
+
+  const abrir = useCallback((anuncio) => {
+    setAberto(anuncio);
+    try {
+      const vistos = JSON.parse(sessionStorage.getItem(CHAVE_VISTOS) ?? '[]');
+      if (vistos.includes(anuncio.id)) return;
+      sessionStorage.setItem(CHAVE_VISTOS, JSON.stringify([...vistos, anuncio.id]));
+    } catch {
+      // navegador sem armazenamento: conta a visita mesmo assim
+    }
+    api.visita(anuncio.id);
+  }, []);
+  const fechar = useCallback(() => setAberto(null), []);
+
+  // link com ?anuncio=... abre o apartamento direto
+  useEffect(() => {
+    const { anuncio } = lerUrl();
+    if (anuncio) api.imovel(anuncio).then(abrir).catch(() => {});
+  }, [abrir]);
 
   const carregarFontes = useCallback(() => api.fontes().then(setFontes).catch(() => {}), []);
   const carregarOpcoes = useCallback(() => api.filtros().then(setOpcoes).catch(() => {}), []);
@@ -93,6 +123,10 @@ export default function App() {
     };
   }, [consulta, versaoDados, chaveFavoritos]);
 
+  useEffect(() => {
+    api.emAlta().then(setQuentes).catch(() => {});
+  }, [versaoDados]);
+
   // Durante a coleta, acompanha o andamento e recarrega tudo ao terminar.
   const coletando = fontes?.coletando;
   useEffect(() => {
@@ -116,8 +150,9 @@ export default function App() {
 
   const totalFiltros = [
     'precoMin', 'precoMax', 'quartos', 'vagas', 'areaMin', 'areaMax', 'bairro', 'imobiliaria', 'tipo',
-    'mobilia', 'conservacao', 'semRepetidos', 'comPreco', 'favoritos', 'q',
+    'mobilia', 'conservacao', 'bomPreco', 'semRepetidos', 'comPreco', 'favoritos', 'q',
   ].filter((k) => filtros[k]).length;
+  const mostrarEmAlta = totalFiltros === 0 && (resultado?.pagina ?? 1) === 1;
 
   const fontesComErro = fontes?.fontes.filter((f) => f.ok === false) ?? [];
   const totalImobiliarias = fontes?.fontes.length ?? 0;
@@ -219,6 +254,8 @@ export default function App() {
             </p>
           )}
 
+          {mostrarEmAlta && <EmAlta itens={quentes} abrir={abrir} />}
+
           {resultado && resultado.total === 0 && !carregando && (
             <Vazio
               semDados={!fontes?.atualizadoEm}
@@ -237,6 +274,7 @@ export default function App() {
                   favorito={favoritos.has(anuncio.id)}
                   alternarFavorito={alternar}
                   primeiraColetaEm={fontes?.primeiraColetaEm}
+                  abrir={abrir}
                 />
               </li>
             ))}
@@ -252,6 +290,17 @@ export default function App() {
       </div>
 
       {painelFontes && fontes && <PainelFontes dados={fontes} fechar={() => setPainelFontes(false)} />}
+
+      <Assistente
+        abrir={abrir}
+        modo={fontes?.assistente}
+        aplicarFiltros={(novos) => {
+          setFiltros(novos);
+          window.scrollTo({ top: 0 });
+        }}
+      />
+
+      {aberto && <DetalheImovel anuncio={aberto} favorito={favoritos.has(aberto.id)} alternarFavorito={alternar} fechar={fechar} />}
     </div>
   );
 }

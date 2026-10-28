@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  detectarConservacao, detectarMobilia, montarAnuncio, normalizarBairro, paraNumero, tipoApartamento,
+  detectarConservacao, detectarMobilia, encontrarBairro, montarAnuncio, normalizarBairro, paraNumero, tipoApartamento,
 } from '../src/lib/normalizar.js';
 
 test('paraNumero entende os formatos de preço dos sites', () => {
@@ -84,4 +84,11 @@ test('montarAnuncio usa o campo da imobiliária antes do texto', () => {
   assert.equal(peloCampo.anoConstrucao, null);
   const pelasCaracteristicas = montarAnuncio(fonte, { ...base, caracteristicas: ['Sacada', 'Semi-Mobiliado'] });
   assert.equal(pelasCaracteristicas.mobilia, 'semimobiliado');
+});
+
+test('encontrarBairro acha o bairro em textos e endereços de página', () => {
+  assert.equal(encontrarBairro('/imoveis-locacao/160-apartamento-1-quarto-s-mato-grande-canoas-ap160'), 'Mato Grande');
+  assert.equal(encontrarBairro('Apartamento no bairro Igara III em Canoas'), 'Igara III');
+  assert.equal(encontrarBairro('perto do Mal. Rondon'), 'Marechal Rondon');
+  assert.equal(encontrarBairro('Condomínio Vida Viva Clube'), null);
 });

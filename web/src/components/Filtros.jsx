@@ -202,6 +202,10 @@ export default function Filtros({ filtros, opcoes, alterar, limpar, totalFavorit
           Só favoritos ({totalFavoritos})
         </Interruptor>
         <p className="mb-1 ml-6 text-xs text-tinta-suave">Os favoritos são compartilhados: todo mundo que abre o site vê os mesmos.</p>
+        <Interruptor marcado={filtros.bomPreco === '1'} alterar={(v) => alterar({ bomPreco: v ? '1' : '' })}>
+          Só bom preço para o bairro
+        </Interruptor>
+        <p className="mb-1 ml-6 text-xs text-tinta-suave">Aluguel pelo menos 15% abaixo dos apartamentos do mesmo bairro com o mesmo número de quartos.</p>
         <Interruptor marcado={filtros.semRepetidos === '1'} alterar={(v) => alterar({ semRepetidos: v ? '1' : '' })}>
           Esconder o mesmo imóvel em outra imobiliária
         </Interruptor>

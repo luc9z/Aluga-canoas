@@ -14,8 +14,10 @@ services:
         value: "22"
       - key: COLETA_INTERVALO_HORAS
         value: "6"
-      # favoritos compartilhados (o disco do plano gratuito é apagado a cada reinício)
-      - key: UPSTASH_REDIS_REST_URL
+      # favoritos e visitas vão para o branch "dados" do repositório
+      # (o disco do plano gratuito é apagado a cada reinício)
+      - key: GITHUB_TOKEN
         sync: false
-      - key: UPSTASH_REDIS_REST_TOKEN
+      # assistente com IA; sem a chave ele usa a busca simples
+      - key: ANTHROPIC_API_KEY
         sync: false

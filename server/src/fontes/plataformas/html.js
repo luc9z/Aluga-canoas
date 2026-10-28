@@ -2,7 +2,7 @@
 // da página de busca. Cada site tem seu próprio "leitor de card".
 import * as cheerio from 'cheerio';
 import { buscarTexto, esperar } from '../../lib/http.js';
-import { montarAnuncio, tipoApartamento } from '../../lib/normalizar.js';
+import { encontrarBairro, montarAnuncio, tipoApartamento } from '../../lib/normalizar.js';
 
 const numeroAntes = (texto, palavra) => texto.match(new RegExp(`(\\d+)\\s*${palavra}`, 'i'))?.[1] ?? null;
 const precoDe = (texto) => texto.match(/R\$\s*([\d.]+(?:,\d{2})?)/)?.[1] ?? null;
@@ -99,7 +99,8 @@ export function lerCardsAgora(html) {
     const codigo = href.match(/\/locacao\/imoveis\/(\d+)/)?.[1];
     const texto = textoSeparado($, el);
     const titulo = card.find('.card-title').text().trim() || link.text().trim();
-    const foto = card.find('img.carousel').first().attr('src') ?? card.find('img').first().attr('src');
+    const fotos = card.find('img.carousel').toArray().map((img) => $(img).attr('src'));
+    const foto = fotos[0] ?? card.find('img').first().attr('src');
     itens.push({
       codigo,
       url: href,
@@ -116,6 +117,7 @@ export function lerCardsAgora(html) {
       vagas: numeroAntes(texto, 'Garage(?:m|ns)') ?? numeroAntes(texto, 'vagas?'),
       area: areaDe(texto),
       foto,
+      fotos,
       descricao: card.find('.card-body p.card-text').last().text(),
     });
   });
@@ -187,6 +189,47 @@ export function lerCardsKasa(html, site) {
       // as fotos vêm com http://, o mesmo endereço funciona com https://
       foto: card.find('img.img_destaques').attr('src')?.replace(/^http:\/\//, 'https://'),
       descricao: card.find('.txt_destaque').text(),
+    });
+  });
+  return itens;
+}
+
+/**
+ * Página 1 Imóveis (site Joomla da WideSys): cards .featured-thumb. O preço
+ * de aluguel é o que tem title="Aluguel" (alguns imóveis também estão à venda);
+ * o bairro vem do endereço da página ou do texto do anúncio.
+ */
+export function lerCardsPagina1(html, site) {
+  const $ = cheerio.load(html);
+  const itens = [];
+  $('.featured-thumb').each((_, el) => {
+    const card = $(el);
+    const href = card.find('a[href^="/imoveis-"]').first().attr('href');
+    const codigo = href?.match(/^\/imoveis-[a-z]+\/(\d+)-/)?.[1];
+    if (!codigo) return;
+    const titulo = card.find('.product-title').text().trim();
+    // <li title="Dormitório(s)"><span>2</span> Dormitório(s)</li>
+    const caracteristica = (regex) => {
+      const li = card.find('li[title]').toArray().find((item) => regex.test($(item).attr('title')));
+      return li ? $(li).find('span').first().text().trim() || null : null;
+    };
+    itens.push({
+      codigo,
+      url: new URL(href, site).href,
+      titulo,
+      tipo: card.find('.featured-thumb-data h5').first().text().trim(),
+      bairro: encontrarBairro(href) ?? encontrarBairro(titulo),
+      // a busca já é filtrada por Canoas
+      cidade: 'Canoas',
+      endereco: card.find('.product-address').text().trim() || null,
+      aluguel: card.find('.price [title="Aluguel"]').text().trim() || null,
+      quartos: caracteristica(/dormit/i),
+      banheiros: caracteristica(/banheiro/i),
+      vagas: caracteristica(/vaga/i),
+      area: caracteristica(/área|area/i),
+      // fotos carregadas sob demanda: o endereço real fica em data-src
+      fotos: card.find('img.lazyload').toArray().map((img) => $(img).attr('data-src')).filter(Boolean),
+      descricao: titulo,
     });
   });
   return itens;

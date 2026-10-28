@@ -3,7 +3,7 @@
 // Para adicionar uma imobiliária, veja se o site usa uma das plataformas já
 // suportadas (Vista, Sobressai, JSON-LD) e basta incluir uma linha aqui.
 // Se não usar, crie um leitor de cards em plataformas/html.js.
-import { fonteHtml, lerCardsAgora, lerCardsKasa, lerCardsOpen, lerCardsPenteado } from './plataformas/html.js';
+import { fonteHtml, lerCardsAgora, lerCardsKasa, lerCardsOpen, lerCardsPagina1, lerCardsPenteado } from './plataformas/html.js';
 import { complementosAuxiliadora, fonteJsonLd } from './plataformas/jsonld.js';
 import { fonteSobressai } from './plataformas/sobressai.js';
 import { fonteVistaApi, fonteVistaSite } from './plataformas/vista.js';
@@ -80,6 +80,17 @@ export const FONTES = [
     // todos os residenciais para alugar vêm numa página só
     urlDaPagina: (n) => (n === 1 ? 'https://www.kasaimoveis.com.br/lista-de-imoveis-residenciais-para-alugar' : null),
     lerPagina: lerCardsKasa,
+  }),
+  fonteHtml({
+    id: 'pagina1',
+    nome: 'Página 1 Imóveis',
+    site: 'https://pagina1.imb.br',
+    // aluguel (-39) em Canoas (10): apartamento, cobertura, cobertura duplex, kitinete, loft e flat; 21 por página
+    urlDaPagina: (n) =>
+      'https://pagina1.imb.br/localizar/localizar-imovel?filter[categoria_catid]=-39&filter[endereco_cid][]=10' +
+      [312, 345, 346, 326, 344, 343].map((tipo) => `&filter[tipo_catid][]=${tipo}`).join('') +
+      `&start=${(n - 1) * 21}`,
+    lerPagina: lerCardsPagina1,
   }),
 ];
 

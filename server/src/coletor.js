@@ -25,6 +25,8 @@ async function executar(log) {
   const anterior = armazenamento.obter();
   const primeiraVez = new Map(anterior.anuncios.map((a) => [a.id, a.primeiraVezEm]));
   const agora = new Date().toISOString();
+  // anúncios da primeira coleta não contam como "novos"
+  const primeiraColetaEm = anterior.primeiraColetaEm ?? agora;
 
   const resultados = await Promise.all(
     FONTES.map(async (fonte) => {
@@ -51,17 +53,19 @@ async function executar(log) {
       ultimaTentativa: agora,
       ultimoSucesso: status.ok ? agora : statusAnterior?.ultimoSucesso ?? null,
     };
+    // nem os da primeira coleta de uma imobiliária que acabou de entrar no sistema
+    const desde = statusAnterior?.ultimoSucesso ? agora : primeiraColetaEm;
     const ids = new Set();
     for (const anuncio of lista) {
       if (ids.has(anuncio.id)) continue;
       ids.add(anuncio.id);
-      anuncios.push({ ...anuncio, primeiraVezEm: primeiraVez.get(anuncio.id) ?? agora });
+      anuncios.push({ ...anuncio, primeiraVezEm: primeiraVez.get(anuncio.id) ?? desde });
     }
   }
 
   marcarRepetidos(anuncios);
-  // anúncios da primeira coleta não contam como "novos"
-  const estado = { anuncios, fontes, atualizadoEm: agora, primeiraColetaEm: anterior.primeiraColetaEm ?? agora };
+  marcarBomPreco(anuncios);
+  const estado = { anuncios, fontes, atualizadoEm: agora, primeiraColetaEm };
   await armazenamento.salvar(estado);
   log(`Total: ${anuncios.length} apartamentos de ${FONTES.length} imobiliárias`);
   return estado;
@@ -87,6 +91,34 @@ export function marcarRepetidos(anuncios) {
       a.tambemEm = grupo
         .filter((outro) => outro.imobiliaria !== a.imobiliaria)
         .map((outro) => ({ id: outro.id, imobiliariaNome: outro.imobiliariaNome, url: outro.url }));
+    }
+  }
+}
+
+/**
+ * Compara o aluguel de cada anúncio com a mediana dos apartamentos do mesmo
+ * bairro e com o mesmo número de quartos (1, 2, 3 ou mais), quando há pelo
+ * menos 5 para comparar. abaixoDaMedia = 0.18 quer dizer 18% mais barato que o
+ * típico. Diferenças acima de 60% costumam ser erro de digitação no preço e
+ * ficam de fora.
+ */
+export function marcarBomPreco(anuncios) {
+  const grupos = new Map();
+  for (const a of anuncios) {
+    delete a.abaixoDaMedia;
+    if (!a.bairro || !a.aluguel || !a.quartos) continue;
+    const chave = `${a.bairro}|${Math.min(a.quartos, 3)}`;
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave).push(a);
+  }
+  for (const grupo of grupos.values()) {
+    if (grupo.length < 5) continue;
+    const valores = grupo.map((a) => a.aluguel).sort((x, y) => x - y);
+    const meio = Math.floor(valores.length / 2);
+    const mediana = valores.length % 2 ? valores[meio] : (valores[meio - 1] + valores[meio]) / 2;
+    for (const a of grupo) {
+      const desconto = 1 - a.aluguel / mediana;
+      if (desconto > 0 && desconto <= 0.6) a.abaixoDaMedia = Math.round(desconto * 100) / 100;
     }
   }
 }

@@ -4,11 +4,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-// sem Upstash configurado, os favoritos vão para um arquivo na PASTA_DADOS
+// sem GITHUB_TOKEN, os favoritos vão para um arquivo na PASTA_DADOS
 const pasta = await mkdtemp(path.join(os.tmpdir(), 'favoritos-'));
 process.env.PASTA_DADOS = pasta;
-delete process.env.UPSTASH_REDIS_REST_URL;
-delete process.env.UPSTASH_REDIS_REST_TOKEN;
+delete process.env.GITHUB_TOKEN;
 const favoritos = await import('../src/favoritos.js');
 
 test('favoritos ficam salvos no arquivo e voltam ao recarregar', async () => {

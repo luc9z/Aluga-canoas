@@ -52,6 +52,7 @@ export function complementosAuxiliadora(html) {
         condominio: imovel.valores?.valorCondominio,
         iptu: imovel.valores?.valorIptu,
         suites: imovel.suites,
+        fotos: imovel.fotos,
         caracteristicas: [...(imovel.caracteristicaImovel ?? []), ...(imovel.campanhas ?? [])].map((c) => c.nome),
       });
     }

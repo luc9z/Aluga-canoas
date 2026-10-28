@@ -18,10 +18,13 @@ Cada anúncio leva para a página original da imobiliária, onde se faz o contat
 | Ágora Cia Imobiliária | agora.imb.br | Leitura dos cards HTML |
 | Penteado Imóveis | penteadoimoveis.com.br | Leitura dos cards HTML |
 | Kasa Imóveis | kasaimoveis.com.br | Leitura dos cards HTML |
+| Página 1 Imóveis | pagina1.imb.br | Leitura dos cards HTML (site WideSys) |
 
 Na coleta de 27/out/2026 foram **837 apartamentos** em cerca de 25 segundos.
 
 Algumas imobiliárias de Canoas **bloqueiam leitura automática** (Vila Rica, Brandalise, Aurora, Crédito Real e Benin). Elas aparecem na tela "Imobiliárias pesquisadas", com link para consultar direto no site. O sistema não tenta burlar esses bloqueios.
+
+O QuintoAndar não tem API pública de anúncios (out/2026), e o `robots.txt` dele proíbe robôs na busca (`/busca`), por isso ele não entra.
 
 ## Como rodar
 
@@ -54,13 +57,15 @@ O arquivo `render.yaml` já descreve o serviço. No [Render](https://render.com)
 
 No plano gratuito o servidor dorme depois de 15 minutos sem acesso e o disco não é permanente: ao acordar ele refaz a coleta (cerca de 1 minuto, a tela mostra "Buscando anúncios…").
 
-Por isso os **favoritos** precisam de um banco fora do Render, senão somem a cada reinício. O [Upstash](https://upstash.com) tem Redis gratuito:
+Por isso os **favoritos** e as **visitas** (que alimentam o "Em alta") são guardados no próprio GitHub, como arquivos JSON no branch `dados` deste repositório (o Render só publica o `main`, então essas gravações não disparam deploy). Para isso o servidor precisa de um token:
 
-1. Crie a conta e um banco Redis (região mais próxima do servidor do Render, ex.: `us-east-1`).
-2. Na página do banco, em **REST API**, copie `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`.
-3. No Render, cole os dois valores nas variáveis de ambiente do serviço (o Blueprint já pede por eles).
+1. No GitHub: **Settings > Developer settings > Personal access tokens > Fine-grained tokens > Generate new token**.
+2. Em **Repository access**, escolha só este repositório; em **Permissions > Contents**, marque **Read and write**.
+3. No Render, cole o token na variável `GITHUB_TOKEN` (o Blueprint já pede por ela). O repositório vem sozinho do Render (`RENDER_GIT_REPO_SLUG`).
 
-O log do servidor diz onde os favoritos estão sendo guardados ("Favoritos no Upstash Redis" ou "Favoritos em arquivo").
+Sem token, favoritos e visitas ficam num arquivo local e somem quando o Render reinicia. O log do servidor diz onde estão sendo guardados.
+
+O **assistente com IA** usa o Claude, da Anthropic: crie uma chave em [console.anthropic.com](https://console.anthropic.com) e cole em `ANTHROPIC_API_KEY`. Cada mensagem é cobrada pela Anthropic, e o servidor limita a 15 mensagens por pessoa a cada 10 minutos e a 300 chamadas por dia (`ASSISTENTE_LIMITE_DIA`). Sem a chave, o assistente continua funcionando com um intérprete simples, que entende pedidos como "2 quartos até 2 mil no Centro, mobiliado".
 
 ### Configuração (variáveis de ambiente)
 
@@ -68,16 +73,24 @@ O log do servidor diz onde os favoritos estão sendo guardados ("Favoritos no Up
 |---|---|---|
 | `PORT` | `3001` | Porta da API |
 | `COLETA_INTERVALO_HORAS` | `6` | Intervalo da coleta automática (`0` desliga) |
-| `PASTA_DADOS` | `server/data` | Onde ficam o `imoveis.json` com os anúncios e o `favoritos.json` (sem Upstash) |
-| `UPSTASH_REDIS_REST_URL` | — | Endereço REST do Redis do Upstash, para os favoritos |
-| `UPSTASH_REDIS_REST_TOKEN` | — | Token do Redis do Upstash |
+| `PASTA_DADOS` | `server/data` | Onde ficam o `imoveis.json` com os anúncios (e favoritos/visitas, sem `GITHUB_TOKEN`) |
+| `GITHUB_TOKEN` | — | Token com acesso de escrita ao conteúdo do repositório, para guardar favoritos e visitas |
+| `GITHUB_REPO` | `RENDER_GIT_REPO_SLUG` | Repositório onde guardar (`dono/repo`) |
+| `GITHUB_BRANCH_DADOS` | `dados` | Branch onde ficam os arquivos de dados |
+| `ANTHROPIC_API_KEY` | — | Chave da API da Anthropic, para o assistente com IA |
+| `ANTHROPIC_MODEL` | `claude-opus-5-5` | Modelo do assistente (ex.: `claude-haiku-5-5`, bem mais barato) |
+| `ASSISTENTE_LIMITE_DIA` | `300` | Chamadas à IA por dia; passando disso, o assistente usa o intérprete simples |
 
 ## Recursos da interface
 
 - Filtros por aluguel (mínimo/máximo e atalhos "até R$ 2.000"), quartos, vagas, área, bairro, tipo (apartamento, kitnet, cobertura, loft…) e imobiliária
 - **Mobília** (mobiliado, semimobiliado) e **estado do imóvel** (novo/1ª locação, reformado). Vêm do campo da imobiliária quando o site tem um (Prime Class, Auxiliadora) ou das palavras do anúncio ("semimobiliado", "primeira locação", "todo reformado"…). Prédio com ano de construção dos últimos 5 anos conta como novo. Anúncio que não fala disso não entra nesses filtros
 - Busca por texto (rua, condomínio, "mobiliado", "piscina"…), sem diferença de acentos
-- Ordenação por menor aluguel, menor custo total (aluguel + condomínio + IPTU, quando a imobiliária informa), menor preço por m², maior área e mais recentes
+- Ordenação por menor aluguel, em alta, menor custo total (aluguel + condomínio + IPTU, quando a imobiliária informa), menor preço por m², maior área e mais recentes
+- **Assistente** ("Pergunte à IA"): a pessoa descreve o que quer do seu jeito e os apartamentos aparecem na própria conversa, com um botão para ver todos os resultados na lista
+- **Detalhes no próprio site**: clicar num anúncio abre fotos (galeria, quando a imobiliária publica várias), custos, características, descrição e mapa; o site da imobiliária fica num botão, para quando for falar com ela. O link do navegador aponta para o anúncio aberto
+- **Em alta**: no topo da lista, os mais vistos aqui no site na última semana, os favoritados, os com bom preço para o bairro e os recém-anunciados, cada um com o motivo
+- **Bom preço**: aluguel pelo menos 15% abaixo da mediana dos apartamentos do mesmo bairro com o mesmo número de quartos (1, 2, 3 ou mais; só quando há 5 ou mais para comparar), com selo no card e filtro
 - **Favoritos compartilhados**: o coração salva no servidor, e todo mundo que abre o site vê e altera a mesma lista (a tela relê a cada 30 segundos). Um favorito que sai do site da imobiliária continua na lista como "Não está mais anunciado"
 - Selo **Anúncio novo** nos anúncios que apareceram nas últimas 48 horas
 - **Repetidos**: o mesmo apartamento anunciado por duas imobiliárias (mesmo bairro, quartos, área e aluguel) mostra "Também anunciado por…", e há um filtro para esconder as cópias
@@ -92,9 +105,13 @@ server/src/
 ├── coletor.js            roda todas as fontes em paralelo, junta e salva
 ├── busca.js              filtros, ordenação e paginação
 ├── armazenamento.js      leitura e gravação de data/imoveis.json
-├── favoritos.js          favoritos compartilhados (Upstash Redis ou data/favoritos.json)
+├── persistencia.js       documentos JSON no branch "dados" do GitHub (ou em arquivo)
+├── favoritos.js          favoritos compartilhados
+├── emAlta.js             visitas por dia e a pontuação do "Em alta"
+├── assistente.js         assistente: Claude com a busca como ferramenta, ou intérprete local
 ├── lib/
 │   ├── http.js           requisições com timeout, novas tentativas e pausa entre páginas
+│   ├── limite.js         limite de pedidos por IP
 │   ├── next.js           leitura dos dados que sites Next.js embutem no HTML
 │   └── normalizar.js     formato único: preço, tipo, bairro ("Mal. Rondon" → "Marechal Rondon"), mobília, novo/reformado…
 └── fontes/
@@ -103,7 +120,7 @@ server/src/
         ├── jsonld.js     schema.org RealEstateListing (+ complemento da Auxiliadora)
         ├── sobressai.js  API GraphQL da Sobressai
         ├── vista.js      CRM Vista (API ou dados embutidos na página)
-        └── html.js       leitura de cards HTML (OPEN, Ágora, Penteado, Kasa)
+        └── html.js       leitura de cards HTML (OPEN, Ágora, Penteado, Kasa, Página 1)
 web/src/                  interface React + Tailwind
 ```
 

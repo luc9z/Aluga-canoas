@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { ehNovo, inteiro, plural, reais } from '../formatar.js';
 
-function Caracteristicas({ anuncio }) {
+// mesmo corte do servidor (BOM_PRECO em busca.js)
+const BOM_PRECO = 0.15;
+
+export function Caracteristicas({ anuncio }) {
   const itens = [
     anuncio.quartos != null && plural(anuncio.quartos, 'quarto'),
     anuncio.suites > 0 && plural(anuncio.suites, 'suíte'),
@@ -18,9 +21,11 @@ function Caracteristicas({ anuncio }) {
   );
 }
 
-// Mobília e estado, quando o anúncio informa.
-function Selos({ anuncio }) {
+// Bom preço para o bairro, mobília e estado, quando o anúncio informa.
+export function Selos({ anuncio }) {
+  const bomPreco = anuncio.abaixoDaMedia >= BOM_PRECO;
   const selos = [
+    bomPreco && `Bom preço: ${Math.round(anuncio.abaixoDaMedia * 100)}% abaixo do bairro`,
     anuncio.mobilia === 'mobiliado' && 'Mobiliado',
     anuncio.mobilia === 'semimobiliado' && 'Semimobiliado',
     anuncio.conservacao === 'novo' && !anuncio.anoConstrucao && 'Novo / 1ª locação',
@@ -30,8 +35,12 @@ function Selos({ anuncio }) {
   if (!selos.length) return null;
   return (
     <ul className="flex flex-wrap gap-1.5">
-      {selos.map((selo) => (
-        <li key={selo} className="rounded border border-linha bg-fundo px-2 py-0.5 text-xs font-semibold">
+      {selos.map((selo, i) => (
+        <li
+          key={selo}
+          title={bomPreco && i === 0 ? 'Aluguel abaixo do típico dos apartamentos do mesmo bairro com o mesmo número de quartos' : undefined}
+          className={`rounded border px-2 py-0.5 text-xs font-semibold ${bomPreco && i === 0 ? 'border-ok/40 bg-ok/10 text-ok' : 'border-linha bg-fundo'}`}
+        >
           {selo}
         </li>
       ))}
@@ -39,12 +48,12 @@ function Selos({ anuncio }) {
   );
 }
 
-export default function CardImovel({ anuncio, favorito, alternarFavorito, primeiraColetaEm }) {
+export default function CardImovel({ anuncio, favorito, alternarFavorito, primeiraColetaEm, abrir }) {
   const [semFoto, setSemFoto] = useState(!anuncio.foto);
   const extras = anuncio.total && anuncio.total > anuncio.aluguel ? anuncio.total - anuncio.aluguel : 0;
 
   return (
-    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-linha bg-white hover:border-tinta/50 has-[h2_a:focus-visible]:ring-[3px] has-[h2_a:focus-visible]:ring-tinta">
+    <article className="group relative flex h-full flex-col overflow-hidden rounded-lg border border-linha bg-white hover:border-tinta/50 has-[h2_button:focus-visible]:ring-[3px] has-[h2_button:focus-visible]:ring-tinta">
       <div className="relative aspect-[4/3] bg-fundo">
         {semFoto ? (
           <div className="flex h-full items-center justify-center text-sm text-tinta-suave">Sem foto</div>
@@ -105,14 +114,14 @@ export default function CardImovel({ anuncio, favorito, alternarFavorito, primei
           </p>
         )}
         <h2 className="font-semibold leading-snug">
-          <a
-            href={anuncio.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="line-clamp-2 after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
+          {/* abre os detalhes aqui no site; o link da imobiliária fica dentro deles */}
+          <button
+            type="button"
+            onClick={() => abrir(anuncio)}
+            className="line-clamp-2 text-left after:absolute after:inset-0 after:content-[''] focus-visible:outline-none"
           >
             {anuncio.titulo}
-          </a>
+          </button>
         </h2>
         <p className="text-sm text-tinta-suave">
           {[anuncio.tipo !== 'Apartamento' && anuncio.tipo, anuncio.bairro ?? 'Bairro não informado', anuncio.endereco]

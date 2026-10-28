@@ -30,7 +30,7 @@ export function sobressaiParaAnuncio(fonte, imovel, { site, cidadeSlug }) {
     banheiros: imovel.banheiros,
     vagas: imovel.garagems,
     area: imovel.area_privativa || imovel.area_util || imovel.area_total,
-    foto: fotos[0]?.url_foto,
+    fotos: fotos.map((f) => f.url_foto),
     descricao: imovel.descricao,
   });
 }

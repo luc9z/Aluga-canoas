@@ -2,7 +2,7 @@
 // real dos sites (out/2026).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { lerCardsAgora, lerCardsKasa, lerCardsOpen, lerCardsPenteado } from '../src/fontes/plataformas/html.js';
+import { lerCardsAgora, lerCardsKasa, lerCardsOpen, lerCardsPagina1, lerCardsPenteado } from '../src/fontes/plataformas/html.js';
 import { complementosAuxiliadora, extrairJsonLd, listingParaAnuncio } from '../src/fontes/plataformas/jsonld.js';
 import { sobressaiParaAnuncio } from '../src/fontes/plataformas/sobressai.js';
 import { extrairImoveisVistaDoHtml, vistaParaAnuncio } from '../src/fontes/plataformas/vista.js';
@@ -232,4 +232,41 @@ test('HTML Kasa: lê o card e o tipo "Apartamento Semi mobiliado"', () => {
   assert.equal(a.bairro, 'Centro');
   assert.equal(a.aluguel, 1200);
   assert.equal(a.mobilia, 'semimobiliado');
+});
+
+test('HTML Página 1: lê o preço de aluguel, as características e as fotos', () => {
+  const html = `<div class="featured-thumb mb-4 item hover-zoomer">
+    <div class="carousel-inner">
+      <div class="carousel-item active"><a href="/imoveis-locacao/160-apartamento-para-aluguel-1-quarto-s-mato-grande-canoas-ap160">
+        <img class="lazyload" src="/templates/loadings/spinningwheel.gif" data-src="https://storage.widesys.com.br/objects/1"></a></div>
+      <div class="carousel-item"><a href="/imoveis-locacao/160-apartamento-para-aluguel-1-quarto-s-mato-grande-canoas-ap160">
+        <img class="lazyload" src="/templates/loadings/spinningwheel.gif" data-src="https://storage.widesys.com.br/objects/2"></a></div>
+    </div>
+    <div class="price text-white hasTooltip">
+      <span class="hasTooltip" title="Aluguel"> R$ 700,00 /mês </span>
+      <span class="hasTooltip" title="Venda"> R$ 120.000,00 </span>
+    </div>
+    <a href="/imoveis-locacao/160-apartamento-para-aluguel-1-quarto-s-mato-grande-canoas-ap160">
+      <div class="featured-thumb-data bg-white shadow-one">
+        <h5 class="text-secondary"> Apartamento </h5>
+        <p class="product-title"> Página 1 Imóveis anuncia apartamento mobiliado no bairro Mato Grande em Canoas/RS. </p>
+        <ul class="mb-0">
+          <li class="hasTooltip" title="Dormitório(s)"> <span> 1 </span> Dormitório(s) </li>
+          <li class="hasTooltip" title="Vagas(s)"> <span> 1 </span> Vagas(s) </li>
+          <li class="hasTooltip" title="Banheiro(s)"> <span> 1 </span> Banheiro(s) </li>
+          <li class="hasTooltip" title="Área total"> <span> 77 </span> m² </li>
+        </ul>
+      </div>
+    </a>
+  </div>`;
+  const [item] = lerCardsPagina1(html, 'https://pagina1.imb.br');
+  assert.equal(item.url, 'https://pagina1.imb.br/imoveis-locacao/160-apartamento-para-aluguel-1-quarto-s-mato-grande-canoas-ap160');
+  assert.equal(item.bairro, 'Mato Grande');
+  assert.equal(item.area, '77');
+  const a = montarAnuncio(fonte, item);
+  assert.equal(a.aluguel, 700);
+  assert.equal(a.quartos, 1);
+  assert.equal(a.mobilia, 'mobiliado');
+  assert.deepEqual(a.fotos, ['https://storage.widesys.com.br/objects/1', 'https://storage.widesys.com.br/objects/2']);
+  assert.equal(a.foto, 'https://storage.widesys.com.br/objects/1');
 });

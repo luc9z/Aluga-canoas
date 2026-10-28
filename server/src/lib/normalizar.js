@@ -100,6 +100,19 @@ export function normalizarBairro(bairro) {
   return BAIRRO_POR_SLUG.get(s) ?? APELIDOS_BAIRRO.get(s) ?? capitalizar(limpo);
 }
 
+/**
+ * Bairro de Canoas citado num texto livre ou num endereço de página
+ * ("...-mato-grande-canoas-ap160"). Prefere o nome mais longo ("Igara III").
+ */
+export function encontrarBairro(texto) {
+  const t = ` ${slug(texto).replace(/-/g, ' ')} `;
+  let achado = null;
+  for (const [chave, nome] of [...BAIRRO_POR_SLUG, ...APELIDOS_BAIRRO]) {
+    if (t.includes(` ${chave.replace(/-/g, ' ')} `) && (!achado || chave.length > achado.chave.length)) achado = { chave, nome };
+  }
+  return achado?.nome ?? null;
+}
+
 export function normalizarCidade(cidade) {
   const limpo = limparTexto(cidade);
   return limpo ? capitalizar(limpo) : null;
@@ -164,6 +177,8 @@ export function montarAnuncio(fonte, dados) {
   const anoConstrucao = paraAno(dados.anoConstrucao);
   // a descrição inteira, antes de ser cortada para guardar
   const texto = [dados.tipo, dados.titulo, dados.descricao, ...[dados.caracteristicas ?? []].flat()].filter(Boolean).join(' ');
+  // galeria para ver o anúncio sem sair do site (só quando há mais de uma foto)
+  const fotos = [...new Set([dados.foto, ...(dados.fotos ?? [])].filter(Boolean))].slice(0, 10);
   return {
     id: `${fonte.id}:${dados.codigo}`,
     imobiliaria: fonte.id,
@@ -184,8 +199,9 @@ export function montarAnuncio(fonte, dados) {
     banheiros: paraInteiro(dados.banheiros),
     vagas: paraInteiro(dados.vagas),
     area: paraNumero(dados.area),
-    foto: dados.foto || null,
-    descricao: limparTexto(dados.descricao)?.slice(0, 600) ?? null,
+    foto: fotos[0] ?? null,
+    ...(fotos.length > 1 ? { fotos } : {}),
+    descricao: limparTexto(dados.descricao)?.slice(0, 1500) ?? null,
     latitude: paraCoordenada(dados.latitude),
     longitude: paraCoordenada(dados.longitude),
     mobilia: dados.mobilia ?? detectarMobilia(texto),
